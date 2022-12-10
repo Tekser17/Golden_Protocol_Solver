@@ -1,7 +1,7 @@
 import copy
 import time
 from urllib.request import urlopen, Request
-# from googlesearch import search
+from googlesearch import search
 from urllib import request
 from bs4 import BeautifulSoup
 from googletrans import Translator, constants
@@ -20,7 +20,7 @@ def surf(query, words):
     query = query.lower()
     words = words.lower()
     print(query)
-    for url in [1]:  # search(query, tld="co.in", num=10, stop=10, pause=2):
+    for url in search(query, tld="co.in", num=10, stop=10, pause=2):
         try:
             html = urlopen(url).read()
 
@@ -75,7 +75,7 @@ def surf_result(title_, text_):
 def parse_page(title, text, url):
     try:
         req = request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        html = request.urlopen(req).read()
+        html = request.urlopen(req, timeout=30).read()
         soup = BeautifulSoup(html, features="html.parser")
         hrefs = soup.find_all('a', href=True)
         links = set()
@@ -103,7 +103,7 @@ def parse_page(title, text, url):
             print(link, round((count / len(links)) * 100, 2), '%')
             time_out = 20
             try:
-                if 'apk' not in link:
+                if 'apk' not in link and 'pdf' not in link and '.png' not in link and '.mp4' not in link and '.jpg' not in link:
                     try:
                         if link.split('//')[1].split('/')[0] in same_timeout:
                             time_out = 5
@@ -135,7 +135,7 @@ def parse_page(title, text, url):
                 return True
             else:
                 return False
-        elif mx_precent >= 59.95:
+        elif mx_precent >= 79.65:
             return True
     except Exception as e:
         print('Ошибка: ', e)
@@ -153,12 +153,40 @@ def main():
     driver.get(golden_verification_url)
     driver.add_cookie({"name": GOLDEN_XYZ_AUTH[0], "value": GOLDEN_XYZ_AUTH[1]})
     driver.refresh()
+    #Q17518284 - ссылка как хрев
+    #обновлять страницу если не удалось найти текст
+    last = None
+    links = []
     while True:
-        link = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/main/div/div[1]/div[2]/div[3]/div/div/a').text
-        accept_button = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[2]/form/fieldset/div[1]/button')
-        reject_button = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[2]/form/fieldset/div[2]/button')
-        title = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[1]/div[2]/div[1]/div/div[1]/h2/a/div').text
-        text = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[1]/div[2]/div[1]/div/div[2]/div').text
+        link = "https://gzmland.ru/"
+        title = ""
+        text = ""
+        accept_button = None
+        reject_button = None
+        try:
+            link = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/main/div/div[1]/div[2]/div[3]/div/div/a').text
+            if 'http' not in link and 'Q' in link:
+                try:
+                    link = driver.find_element(By.XPATH,'/html/body/div[1]/div[2]/main/div/div[1]/div[2]/div[3]/div/div/a').get_attribute('href')
+                except Exception as ex:
+                    print('Не удалось получить ссылку с индефикатором Q: ', ex)
+        except Exception as ex:
+           print('Не удалось получить ссылку:', ex)
+        try:
+            accept_button = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[2]/form/fieldset/div[1]/button')
+            reject_button = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[2]/form/fieldset/div[2]/button')
+        except Exception as ex:
+            print('Не удалось получить кнопки:', ex)
+        try:
+            title = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[1]/div[2]/div[1]/div/div[1]/h2/a/div').text
+        except Exception as ex:
+            driver.refresh()
+            print('Не удалось найти title:', ex)
+        try:
+            text = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[1]/div[2]/div[1]/div/div[2]/div').text
+        except Exception as ex:
+            driver.refresh()
+            print('Не удалось найти text:', ex)
         if len(title) > 0:
             try:
                 title = translator.translate(title).text
@@ -181,25 +209,31 @@ def main():
         print(response)
         if response:
             try:
+                accept_button = driver.find_element(By.XPATH,'/html/body/div/div[2]/main/div/div[2]/form/fieldset/div[1]/button')
                 accept_button.click()
             except Exception as e:
                 try:
                     alert = driver.find_element(By.XPATH, '/html/body/div[2]/div/div/div/div[2]/div[2]/button[2]')
                     alert.click()
                     print('Уведомления успешно выключены')
-                except NoSuchElementException as e:
+                except Exception as e:
                     pass
         else:
             try:
+                reject_button = driver.find_element(By.XPATH, '/html/body/div/div[2]/main/div/div[2]/form/fieldset/div[2]/button')
                 reject_button.click()
             except Exception as e:
                 try:
                     alert = driver.find_element(By.XPATH, '/html/body/div[2]/div/div/div/div[2]/div[2]/button[2]')
                     alert.click()
                     print('Уведомления успешно выключены')
-                except NoSuchElementException as e:
+                except Exception as e:
                     pass
         time.sleep(5)
+        links.append(link)
+        if last == link or (len(links) >= 3 and links[-1] == links[-2] and links[-2] == links[-3]):
+            driver.refresh()
+        last = link
 
     #title = "Дмитрий Лукьяненко"
     #text = "Ректор Киевского национального экономического университета имени Вадима Гетьмана"
@@ -214,7 +248,6 @@ def main():
     #url = "https://velo.org/"
     #parse_page(title, text, url)
     #print(text)
-
     # precent = surf_result(title, text) Гуглим и ищем сходства
     # print(precent, '%')
 
@@ -222,6 +255,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-# Дмитрий Лукьяненко
-# Ректор Киевского национального экономического университета имени Вадима Гетьмана
-# http://lukianenko.com.ua/en/
